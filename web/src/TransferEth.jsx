@@ -1,5 +1,6 @@
 import React from 'react'
 import { useState } from "react";
+import { ethers } from "ethers";
 import { Web3Button, useAddress } from "@thirdweb-dev/react";
 
 function TransferEthInput() {
@@ -52,18 +53,18 @@ function TransferEthInput() {
                         // Map each item in the data array to a new array, 'recipients', containing only the addresses
                         const recipients = data.map(item => item.address);
 
-                        // Map each item in the data array to a new array, 'amounts', converting the 'amount' to a BigInt
-                        const amounts = data.map(item => {
-                            // Parse the amount to an integer and multiply by 10^18 to convert to Wei (smallest denomination of Ether)
-                            // BigInt is used for handling large integers safely
-                            return BigInt(parseInt(item.amount * 10 ** 18));
-                        });
+                        // Use ethers.js to handle conversion from ether to Wei for each amount
+                        // This approach ensures precision and avoids the direct use of BigInt for arithmetic operations
+                        const amounts = data.map(item => ethers.utils.parseEther(item.amount.toString()));
 
                         console.log(amounts);
 
-                        // Calculate the total amount by summing up all the BigInt amounts
-                        // reduce is an iterative function that loops through an array, 0n is the initial value
-                        const totalAmount = amounts.reduce((a, b) => a + b, 0n);
+                        // Calculate the total amount by summing up all amounts
+                        // Using ethers.BigNumber for accurate and safe arithmetic operations
+                        let totalAmount = ethers.BigNumber.from(0);
+                        amounts.forEach(amount => {
+                            totalAmount = totalAmount.add(amount);
+                        });
 
                         // Call the 'disperseEther' function of the contract with the recipients and their respective amounts
                         // The 'value' property is set to the total amount of Ether to be dispersed, in Wei
@@ -71,7 +72,7 @@ function TransferEthInput() {
                             recipients,
                             amounts,
                         ], {
-                            value: BigInt(totalAmount)
+                            value: totalAmount
                         })
                     }}
                 >

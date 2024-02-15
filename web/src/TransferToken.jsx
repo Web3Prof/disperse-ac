@@ -3,7 +3,6 @@ import { useState } from "react";
 import { Web3Button, useAddress } from "@thirdweb-dev/react";
 import { ethers } from "ethers";
 import abi from './IERC20.json';
-import { parseEther, BigNumber } from 'ethers/lib/utils';
 
 function TransferTokenInput() {
     const [data, setData] = useState([]); // initialize empty array
@@ -92,11 +91,16 @@ function TransferTokenInput() {
 
                                     // Map each item in the data array to a new array, 'amounts', converting the 'amount' to a BigInt
                                     const decimal = await contract.call("decimals"); // get the decimals
-                                    const amounts = data.map(item => {
-                                        return BigInt(parseInt(item.amount * 10 ** decimal).toString());
-                                    });
+                                    // Convert each 'amount' to a BigNumber, considering the decimals
+                                    const amounts = data.map(item => ethers.utils.parseUnits(item.amount.toString(), decimal));
 
-                                    const totalAmount = BigInt(parseInt(amounts.reduce((a, b) => a + b, 0n)).toString());
+                                    // Initialize a BigNumber for totalAmount
+                                    let totalAmount = ethers.BigNumber.from(0);
+
+                                    // Iterate through amounts and sum them up
+                                    for (let amount of amounts) {
+                                        totalAmount = totalAmount.add(amount);
+                                    }
                                     console.log(totalAmount);
 
                                     contract.call("approve", [
@@ -113,7 +117,10 @@ function TransferTokenInput() {
                             <Web3Button
                                 style={{ marginTop: "20px", flexGrow: 1 }}
                                 contractAddress={"0xFDd705d5374cb577b5Eb8f74B52fD2804CA06483"}
+                                contractAbi={abi}
                                 action={async (contract) => {
+
+                                    // make sure approval transaction has succeed before sending tokens
 
                                     const tokenContract = new ethers.Contract(token, abi, provider); // set contract
                                     // Map each item in the data array to a new array, 'recipients', containing only the addresses
@@ -122,32 +129,31 @@ function TransferTokenInput() {
                                     // Map each item in the data array to a new array, 'amounts', converting the 'amount' to a BigInt
                                     const decimal = await tokenContract.decimals();
 
+                                    // Convert amounts to the correct unit based on the token's decimals
                                     const amounts = data.map(item => {
-
-                                        // Parse the amount string to a floating point number
-                                        const amountNumber = parseFloat(item.amount); // parse float solve precission issue (i assume)
-                                        // probaby because di transfer token ada calculation, tapi di eth gaada jadi aman
-                                        const amountBigInt = BigInt(Math.floor(amountNumber * (10 ** decimal))).toString();
-                                        return amountBigInt; // Ensure to return the calculated BigInt value
-
-
-                                        //return BigInt(parseInt(item.amount * 10 ** decimal).toString());
+                                        // Use ethers.js utility to parse amounts, ensuring proper handling of big numbers
+                                        return ethers.utils.parseUnits(item.amount.toString(), decimal).toString();
                                     });
-                                    // ref precission issue: https://links.ethers.org/v5-errors-NUMERIC_FAULT-overflow
 
-                                    // check amounts
-                                    console.log(amounts);
+                                    // Debug: Log amounts and recipients
+                                    console.log({ amounts, recipients });
 
-                                    // check balance of sender
-                                    console.log("Balance:" + await tokenContract.balanceOf(address));
+                                    // Debug: Check balance of the sender (assuming 'address' is defined and available)
+                                    console.log("Balance " + address + ": " + await tokenContract.balanceOf(address));
 
 
                                     // Call the 'disperseToken' function of the contract with the recipients and their respective amounts
-                                    contract.call("disperseToken", [
-                                        token,
-                                        recipients,
-                                        amounts,
-                                    ])
+                                    try {
+                                        contract.call("disperseToken", [
+                                            token,
+                                            recipients,
+                                            amounts,
+                                        ])
+                                    }
+                                    catch (error) {
+                                        console.log("Error during token dispersal: ", error);
+                                    }
+
 
                                 }}
                             >
